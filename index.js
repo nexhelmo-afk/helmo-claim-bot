@@ -18,6 +18,9 @@ const PREFIX = "!";
 // Kanał #list-respawn
 const STATUS_CHANNEL_ID = "1541221779954081834";
 
+// Kanał #komendy-bota
+const COMMANDS_CHANNEL_ID = "1541231781968224266";
+
 const RESPS = {
   1: "Vampire — Niheim",
   2: "Minotaur / Witch — Niheim",
@@ -99,7 +102,6 @@ const RESPS = {
 
 const active = new Map();
 
-// Wiadomości listy na #list-respawn
 let statusMessageIds = [];
 
 // ====================================================
@@ -164,6 +166,7 @@ async function updateRespStatus() {
     const lines = [];
 
     for (let id = 1; id <= 76; id++) {
+
       if (active.has(id)) {
         busyCount++;
 
@@ -174,6 +177,7 @@ async function updateRespStatus() {
           `🔴 **#${id}** ${RESPS[id]}\n` +
           `👤 <@${data.userId}> • ⏳ <t:${unix}:R>`
         );
+
       } else {
         freeCount++;
 
@@ -188,13 +192,11 @@ async function updateRespStatus() {
       `🟢 **Wolne: ${freeCount}**\n` +
       `🔴 **Zajęte: ${busyCount}**\n\n`;
 
-    // Discord ma limit długości wiadomości.
-    // Dzielimy listę automatycznie na kilka części.
     const chunks = [];
-
     let current = header;
 
     for (const line of lines) {
+
       const next = `${line}\n\n`;
 
       if ((current + next).length > 1900) {
@@ -209,9 +211,8 @@ async function updateRespStatus() {
       chunks.push(current);
     }
 
-    // Jeśli bot został uruchomiony ponownie,
-    // spróbuj znaleźć poprzednią listę.
     if (statusMessageIds.length === 0) {
+
       const recentMessages = await channel.messages.fetch({
         limit: 20
       });
@@ -230,46 +231,207 @@ async function updateRespStatus() {
       statusMessageIds = oldBotMessages.map(msg => msg.id);
     }
 
-    // Edytuj istniejące części listy lub utwórz nowe.
     for (let i = 0; i < chunks.length; i++) {
+
       let edited = false;
 
       if (statusMessageIds[i]) {
+
         try {
-          const msg = await channel.messages.fetch(statusMessageIds[i]);
+
+          const msg = await channel.messages.fetch(
+            statusMessageIds[i]
+          );
 
           await msg.edit(chunks[i]);
 
           edited = true;
-        } catch (error) {
+
+        } catch {
           edited = false;
         }
       }
 
       if (!edited) {
+
         const msg = await channel.send(chunks[i]);
 
         statusMessageIds[i] = msg.id;
       }
     }
 
-    // Usuń nadmiarowe stare części, jeżeli aktualna lista
-    // potrzebuje mniej wiadomości.
     if (statusMessageIds.length > chunks.length) {
-      const excessIds = statusMessageIds.slice(chunks.length);
+
+      const excessIds =
+        statusMessageIds.slice(chunks.length);
 
       for (const id of excessIds) {
+
         try {
-          const msg = await channel.messages.fetch(id);
+
+          const msg =
+            await channel.messages.fetch(id);
+
           await msg.delete();
+
         } catch {}
       }
 
-      statusMessageIds = statusMessageIds.slice(0, chunks.length);
+      statusMessageIds =
+        statusMessageIds.slice(0, chunks.length);
     }
 
   } catch (error) {
-    console.error("❌ Błąd aktualizacji #list-respawn:", error);
+
+    console.error(
+      "❌ Błąd aktualizacji #list-respawn:",
+      error
+    );
+  }
+}
+
+// ====================================================
+// KANAŁ KOMEND PL / EN
+// ====================================================
+
+async function updateCommandsChannel() {
+
+  try {
+
+    const channel =
+      await client.channels.fetch(COMMANDS_CHANNEL_ID);
+
+    if (!channel || !channel.isTextBased()) {
+
+      console.log(
+        "❌ Nie znaleziono kanału #komendy-bota"
+      );
+
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+
+      .setColor(0x5865F2)
+
+      .setTitle(
+        "📖 HELMO CLAIM BOT — KOMENDY / COMMANDS"
+      )
+
+      .setDescription(
+        "🇵🇱 **Instrukcja obsługi bota**\n" +
+        "🇬🇧 **Bot usage guide**"
+      )
+
+      .addFields(
+
+        {
+          name: "🎯 !resp 72 2h",
+          value:
+            "🇵🇱 Zajmuje wybrany resp na określony czas.\n" +
+            "Przykład: `!resp 72 2h` → zajmuje RESP #72 na 2 godziny.\n\n" +
+            "🇬🇧 Claims the selected respawn for a specified time.\n" +
+            "Example: `!resp 72 2h` → claims RESP #72 for 2 hours."
+        },
+
+        {
+          name: "⏩ !respnext 72",
+          value:
+            "🇵🇱 Dodaje Cię do kolejki NEXT na zajęty resp.\n" +
+            "Gdy obecny gracz zwolni resp, pierwsza osoba z kolejki go przejmuje.\n\n" +
+            "🇬🇧 Adds you to the NEXT queue for an occupied respawn.\n" +
+            "When the current player releases it, the first player in queue takes over."
+        },
+
+        {
+          name: "🟢 !respdel 72",
+          value:
+            "🇵🇱 Zwalnia zajęty przez Ciebie resp.\n" +
+            "Jeśli ktoś czeka w NEXT, resp zostanie przekazany pierwszej osobie z kolejki.\n\n" +
+            "🇬🇧 Releases your claimed respawn.\n" +
+            "If someone is waiting in NEXT, the respawn is transferred to the first player in queue."
+        },
+
+        {
+          name: "❌ !nextdel 72",
+          value:
+            "🇵🇱 Usuwa Cię z kolejki NEXT dla danego respa.\n\n" +
+            "🇬🇧 Removes you from the NEXT queue for the selected respawn."
+        },
+
+        {
+          name: "🔎 !respinfo 72",
+          value:
+            "🇵🇱 Pokazuje status wybranego respa: wolny/zajęty, właściciela, czas i NEXT.\n\n" +
+            "🇬🇧 Shows the selected respawn status: free/occupied, owner, time and NEXT queue."
+        },
+
+        {
+          name: "🔴 !list",
+          value:
+            "🇵🇱 Pokazuje wszystkie aktualnie zajęte respy.\n\n" +
+            "🇬🇧 Shows all currently occupied respawns."
+        },
+
+        {
+          name: "🟢 !wolne",
+          value:
+            "🇵🇱 Pokazuje wszystkie aktualnie wolne respy.\n\n" +
+            "🇬🇧 Shows all currently available respawns."
+        },
+
+        {
+          name: "📖 !help",
+          value:
+            "🇵🇱 Wyświetla skróconą listę komend.\n\n" +
+            "🇬🇧 Displays a short list of commands."
+        },
+
+        {
+          name: "⏱️ FORMAT CZASU / TIME FORMAT",
+          value:
+            "🇵🇱 `30` = 30 minut • `60` = 60 minut • `1h` = 1 godzina • `2h` = 2 godziny\n\n" +
+            "🇬🇧 `30` = 30 minutes • `60` = 60 minutes • `1h` = 1 hour • `2h` = 2 hours"
+        }
+      )
+
+      .setFooter({
+        text: "Helmo Claim Bot • PL / EN"
+      });
+
+    const recentMessages =
+      await channel.messages.fetch({
+        limit: 20
+      });
+
+    const existing =
+      [...recentMessages.values()].find(msg =>
+        msg.author.id === client.user.id &&
+        msg.embeds?.some(e =>
+          e.title ===
+          "📖 HELMO CLAIM BOT — KOMENDY / COMMANDS"
+        )
+      );
+
+    if (existing) {
+
+      await existing.edit({
+        embeds: [embed]
+      });
+
+    } else {
+
+      await channel.send({
+        embeds: [embed]
+      });
+    }
+
+  } catch (error) {
+
+    console.error(
+      "❌ Błąd aktualizacji #komendy-bota:",
+      error
+    );
   }
 }
 
@@ -278,10 +440,14 @@ async function updateRespStatus() {
 // ====================================================
 
 client.once("ready", async () => {
-  console.log(`✅ Bot online jako ${client.user.tag}`);
 
-  // Pierwsza aktualizacja listy po starcie.
+  console.log(
+    `✅ Bot online jako ${client.user.tag}`
+  );
+
   await updateRespStatus();
+
+  await updateCommandsChannel();
 });
 
 // ====================================================
@@ -289,7 +455,9 @@ client.once("ready", async () => {
 // ====================================================
 
 client.on("messageCreate", async message => {
+
   if (message.author.bot) return;
+
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content
@@ -297,21 +465,28 @@ client.on("messageCreate", async message => {
     .trim()
     .split(/\s+/);
 
-  const command = args.shift()?.toLowerCase();
+  const command =
+    args.shift()?.toLowerCase();
 
   // ==================================================
   // !resp 72 2h
   // ==================================================
 
   if (command === "resp") {
+
     const resp = getResp(args[0]);
+
     const time = parseTime(args[1]);
 
     if (!resp) {
-      return message.reply("❌ Podaj numer respa od `1` do `76`.");
+
+      return message.reply(
+        "❌ Podaj numer respa od `1` do `76`."
+      );
     }
 
     if (!time) {
+
       return message.reply(
         "❌ Podaj czas, np. `2h` albo `30` minut.\n" +
         "Przykład: `!resp 72 2h`"
@@ -319,6 +494,7 @@ client.on("messageCreate", async message => {
     }
 
     if (active.has(resp.id)) {
+
       const data = active.get(resp.id);
 
       return message.reply(
@@ -329,31 +505,45 @@ client.on("messageCreate", async message => {
       );
     }
 
-    const endTime = Date.now() + time.ms;
+    const endTime =
+      Date.now() + time.ms;
 
     active.set(resp.id, {
+
       id: resp.id,
+
       name: resp.name,
+
       userId: message.author.id,
+
       durationMs: time.ms,
+
       durationText: time.text,
+
       endTime,
+
       queue: []
     });
 
-    // Natychmiast zmień 🟢 na 🔴 na list-respawn.
     await updateRespStatus();
 
-    const unix = Math.floor(endTime / 1000);
+    const unix =
+      Math.floor(endTime / 1000);
 
-    const embed = new EmbedBuilder()
-      .setColor(0xED4245)
-      .setTitle(`🔴 ZAJĘTY RESP #${resp.id}`)
-      .setDescription(
-        `**${resp.name}**\n\n` +
-        `👤 Zajęty przez: <@${message.author.id}>\n` +
-        `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
-      );
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(0xED4245)
+
+        .setTitle(
+          `🔴 ZAJĘTY RESP #${resp.id}`
+        )
+
+        .setDescription(
+          `**${resp.name}**\n\n` +
+          `👤 Zajęty przez: <@${message.author.id}>\n` +
+          `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -365,46 +555,68 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "respnext") {
-    const resp = getResp(args[0]);
+
+    const resp =
+      getResp(args[0]);
 
     if (!resp) {
+
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data = active.get(resp.id);
+    const data =
+      active.get(resp.id);
 
     if (!data) {
+
       return message.reply(
         `🟢 **RESP #${resp.id} jest wolny.**\n` +
         `Użyj \`!resp ${resp.id} 2h\`.`
       );
     }
 
-    if (data.userId === message.author.id) {
+    if (
+      data.userId ===
+      message.author.id
+    ) {
+
       return message.reply(
         "❌ Ten resp jest już Twój."
       );
     }
 
-    if (data.queue.includes(message.author.id)) {
+    if (
+      data.queue.includes(
+        message.author.id
+      )
+    ) {
+
       return message.reply(
         "❌ Jesteś już w kolejce NEXT."
       );
     }
 
-    data.queue.push(message.author.id);
+    data.queue.push(
+      message.author.id
+    );
 
-    const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setTitle("⏩ NEXT — KOLEJKA")
-      .setDescription(
-        `<@${message.author.id}> wszedł do kolejki.\n\n` +
-        `🗺️ **RESP #${resp.id}**\n` +
-        `${resp.name}\n\n` +
-        `📊 Pozycja: **${data.queue.length}**`
-      );
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(0x5865F2)
+
+        .setTitle(
+          "⏩ NEXT — KOLEJKA"
+        )
+
+        .setDescription(
+          `<@${message.author.id}> wszedł do kolejki.\n\n` +
+          `🗺️ **RESP #${resp.id}**\n` +
+          `${resp.name}\n\n` +
+          `📊 Pozycja: **${data.queue.length}**`
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -416,31 +628,43 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "nextdel") {
-    const resp = getResp(args[0]);
+
+    const resp =
+      getResp(args[0]);
 
     if (!resp) {
+
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data = active.get(resp.id);
+    const data =
+      active.get(resp.id);
 
     if (!data) {
+
       return message.reply(
         "❌ Ten resp nie jest zajęty."
       );
     }
 
-    const position = data.queue.indexOf(message.author.id);
+    const position =
+      data.queue.indexOf(
+        message.author.id
+      );
 
     if (position === -1) {
+
       return message.reply(
         "❌ Nie jesteś w kolejce NEXT."
       );
     }
 
-    data.queue.splice(position, 1);
+    data.queue.splice(
+      position,
+      1
+    );
 
     return message.reply(
       `✅ Usunięto Cię z kolejki NEXT dla **RESP #${resp.id}**.`
@@ -452,68 +676,105 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "respdel") {
-    const resp = getResp(args[0]);
+
+    const resp =
+      getResp(args[0]);
 
     if (!resp) {
+
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data = active.get(resp.id);
+    const data =
+      active.get(resp.id);
 
     if (!data) {
+
       return message.reply(
         `🟢 RESP #${resp.id} jest już wolny.`
       );
     }
 
-    if (data.userId !== message.author.id) {
+    if (
+      data.userId !==
+      message.author.id
+    ) {
+
       return message.reply(
         "❌ Tylko osoba zajmująca resp może go zwolnić."
       );
     }
 
-    // Jest osoba NEXT.
-    if (data.queue.length > 0) {
-      const oldUser = data.userId;
-      const nextUser = data.queue.shift();
+    if (
+      data.queue.length > 0
+    ) {
 
-      data.userId = nextUser;
-      data.endTime = Date.now() + data.durationMs;
+      const oldUser =
+        data.userId;
 
-      // Lista nadal 🔴, ale zmieni właściciela.
+      const nextUser =
+        data.queue.shift();
+
+      data.userId =
+        nextUser;
+
+      data.endTime =
+        Date.now() +
+        data.durationMs;
+
       await updateRespStatus();
 
-      const unix = Math.floor(data.endTime / 1000);
-
-      const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle(`🔄 NEXT CLAIM — RESP #${resp.id}`)
-        .setDescription(
-          `🗺️ **${resp.name}**\n\n` +
-          `👤 <@${oldUser}> zwolnił resp.\n` +
-          `👤 <@${nextUser}> przejmuje resp.\n` +
-          `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+      const unix =
+        Math.floor(
+          data.endTime / 1000
         );
+
+      const embed =
+        new EmbedBuilder()
+
+          .setColor(
+            0x5865F2
+          )
+
+          .setTitle(
+            `🔄 NEXT CLAIM — RESP #${resp.id}`
+          )
+
+          .setDescription(
+            `🗺️ **${resp.name}**\n\n` +
+            `👤 <@${oldUser}> zwolnił resp.\n` +
+            `👤 <@${nextUser}> przejmuje resp.\n` +
+            `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+          );
 
       return message.channel.send({
         embeds: [embed]
       });
     }
 
-    active.delete(resp.id);
+    active.delete(
+      resp.id
+    );
 
-    // Natychmiast 🔴 → 🟢
     await updateRespStatus();
 
-    const embed = new EmbedBuilder()
-      .setColor(0x57F287)
-      .setTitle(`🟢 ZWOLNIONY RESP #${resp.id}`)
-      .setDescription(
-        `**${resp.name}**\n\n` +
-        `Resp zwolniony przez <@${message.author.id}>.`
-      );
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(
+          0x57F287
+        )
+
+        .setTitle(
+          `🟢 ZWOLNIONY RESP #${resp.id}`
+        )
+
+        .setDescription(
+          `**${resp.name}**\n\n` +
+          `Resp zwolniony przez <@${message.author.id}>.`
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -525,19 +786,31 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "list") {
+
     if (active.size === 0) {
+
       return message.channel.send(
         "📭 **Brak aktywnych respów. Wszystkie są wolne.**"
       );
     }
 
-    const sorted = [...active.values()]
-      .sort((a, b) => a.id - b.id);
+    const sorted =
+      [...active.values()]
+        .sort(
+          (a, b) =>
+            a.id - b.id
+        );
 
     let text = "";
 
-    for (const data of sorted) {
-      const unix = Math.floor(data.endTime / 1000);
+    for (
+      const data of sorted
+    ) {
+
+      const unix =
+        Math.floor(
+          data.endTime / 1000
+        );
 
       text +=
         `🔴 **#${data.id} ${data.name}**\n` +
@@ -546,14 +819,31 @@ client.on("messageCreate", async message => {
         `⏩ NEXT: ${data.queue.length}\n\n`;
     }
 
-    if (text.length > 4000) {
-      text = text.slice(0, 3900) + "\n...";
+    if (
+      text.length > 4000
+    ) {
+
+      text =
+        text.slice(
+          0,
+          3900
+        ) + "\n...";
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0xF1C40F)
-      .setTitle("🎯 Lista aktywnych respów — EUROPA")
-      .setDescription(text);
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(
+          0xF1C40F
+        )
+
+        .setTitle(
+          "🎯 Lista aktywnych respów — EUROPA"
+        )
+
+        .setDescription(
+          text
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -565,26 +855,54 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "wolne") {
+
     const free = [];
 
-    for (let id = 1; id <= 76; id++) {
-      if (!active.has(id)) {
-        free.push(`#${id} ${RESPS[id]}`);
+    for (
+      let id = 1;
+      id <= 76;
+      id++
+    ) {
+
+      if (
+        !active.has(id)
+      ) {
+
+        free.push(
+          `#${id} ${RESPS[id]}`
+        );
       }
     }
 
-    let text = free.join("\n");
+    let text =
+      free.join("\n");
 
-    if (text.length > 4000) {
-      text = text.slice(0, 3900) + "\n...";
+    if (
+      text.length > 4000
+    ) {
+
+      text =
+        text.slice(
+          0,
+          3900
+        ) + "\n...";
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x57F287)
-      .setTitle(`🟢 Wolne respy (${free.length}/76)`)
-      .setDescription(
-        text || "Brak wolnych respów."
-      );
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(
+          0x57F287
+        )
+
+        .setTitle(
+          `🟢 Wolne respy (${free.length}/76)`
+        )
+
+        .setDescription(
+          text ||
+          "Brak wolnych respów."
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -595,25 +913,36 @@ client.on("messageCreate", async message => {
   // !respinfo 72
   // ==================================================
 
-  if (command === "respinfo") {
-    const resp = getResp(args[0]);
+  if (
+    command ===
+    "respinfo"
+  ) {
+
+    const resp =
+      getResp(args[0]);
 
     if (!resp) {
+
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data = active.get(resp.id);
+    const data =
+      active.get(resp.id);
 
     if (!data) {
+
       return message.channel.send(
         `🟢 **RESP #${resp.id} — WOLNY**\n` +
         `🗺️ ${resp.name}`
       );
     }
 
-    const unix = Math.floor(data.endTime / 1000);
+    const unix =
+      Math.floor(
+        data.endTime / 1000
+      );
 
     return message.channel.send(
       `🔴 **RESP #${resp.id} — ZAJĘTY**\n` +
@@ -629,18 +958,27 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "help") {
-    const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setTitle("📖 Helmo Claim Bot")
-      .setDescription(
-        "`!resp 72 2h` — zajmij resp\n\n" +
-        "`!respnext 72` — wejdź do NEXT\n\n" +
-        "`!respdel 72` — zwolnij resp\n\n" +
-        "`!nextdel 72` — wyjdź z NEXT\n\n" +
-        "`!respinfo 72` — informacje o respie\n\n" +
-        "`!list` — aktywne respy\n\n" +
-        "`!wolne` — wolne respy"
-      );
+
+    const embed =
+      new EmbedBuilder()
+
+        .setColor(
+          0x5865F2
+        )
+
+        .setTitle(
+          "📖 Helmo Claim Bot"
+        )
+
+        .setDescription(
+          "`!resp 72 2h` — zajmij resp\n\n" +
+          "`!respnext 72` — wejdź do NEXT\n\n" +
+          "`!respdel 72` — zwolnij resp\n\n" +
+          "`!nextdel 72` — wyjdź z NEXT\n\n" +
+          "`!respinfo 72` — informacje o respie\n\n" +
+          "`!list` — aktywne respy\n\n" +
+          "`!wolne` — wolne respy"
+        );
 
     return message.channel.send({
       embeds: [embed]
@@ -652,45 +990,82 @@ client.on("messageCreate", async message => {
 // AUTOMATYCZNE WYGASANIE
 // ====================================================
 
-setInterval(async () => {
-  const now = Date.now();
+setInterval(
+  async () => {
 
-  let changed = false;
+    const now =
+      Date.now();
 
-  for (const [id, data] of active.entries()) {
-    if (now < data.endTime) continue;
+    let changed =
+      false;
 
-    if (data.queue.length > 0) {
-      const nextUser = data.queue.shift();
+    for (
+      const [id, data]
+      of active.entries()
+    ) {
 
-      data.userId = nextUser;
-      data.endTime = now + data.durationMs;
+      if (
+        now < data.endTime
+      ) {
+        continue;
+      }
 
-      changed = true;
-    } else {
-      active.delete(id);
+      if (
+        data.queue.length > 0
+      ) {
 
-      changed = true;
+        const nextUser =
+          data.queue.shift();
+
+        data.userId =
+          nextUser;
+
+        data.endTime =
+          now +
+          data.durationMs;
+
+        changed =
+          true;
+
+      } else {
+
+        active.delete(id);
+
+        changed =
+          true;
+      }
     }
-  }
 
-  if (changed) {
+    if (changed) {
+
+      await updateRespStatus();
+    }
+
+  },
+  15000
+);
+
+// Odświeżenie listy co minutę
+
+setInterval(
+  async () => {
+
     await updateRespStatus();
-  }
 
-}, 15000);
-
-// Dodatkowe okresowe odświeżenie listy.
-setInterval(async () => {
-  await updateRespStatus();
-}, 60000);
+  },
+  60000
+);
 
 // ====================================================
 // START
 // ====================================================
 
 if (!TOKEN) {
-  console.error("❌ Brak DISCORD_TOKEN");
+
+  console.error(
+    "❌ Brak DISCORD_TOKEN"
+  );
+
   process.exit(1);
 }
 
