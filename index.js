@@ -12,35 +12,112 @@ const client = new Client({
   ]
 });
 
-// ==============================
-// USTAWIENIA
-// ==============================
-
+const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = "!";
 
-// Token będzie dodany później w Railway.
-// NIE wpisuj tokenu bota bezpośrednio tutaj.
-const TOKEN = process.env.DISCORD_TOKEN;
+const RESPS = {
+  1: "Vampire — Niheim",
+  2: "Minotaur / Witch — Niheim",
+  3: "Orcs — Niheim",
+  4: "Cyclops — Niheim",
+  5: "Tortoise — Niheim",
+  6: "Octopus — Niheim",
+  7: "Dragons / Dragon Lords — Surface — Niheim",
+  8: "Dragons / Dragon Lords — -1 — Niheim",
+  9: "Dragon Lords — -1 Big Cave — Niheim",
+  10: "Hydras — Niheim",
+  11: "Stone Refiner — Niheim",
+  12: "Storm Dragons — Niheim",
+  13: "Energy Witch — Niheim",
+  14: "Medusas -1 — Niheim",
+  15: "Medusas -2 — Niheim",
+  16: "Demons — Niheim",
+  17: "Soul Devourer / Hideosface — Niheim",
+  18: "Esganed Demons / Demon (Nightmare Boss) — Niheim",
+  19: "Black Soul Devourer / Black Hideosface — Niheim",
+  20: "Thunder Sabers — Niheim",
+  21: "Boquitas -1 — Niheim",
+  22: "Boquitas -2 — Niheim",
+  23: "Boquitas -3 — Niheim",
+  24: "Livraria Ice — Niheim",
+  25: "Livraria Earth — Niheim",
+  26: "Livraria Fire — Niheim",
+  27: "Livraria Death — Niheim",
+  28: "Livraria Energy — Niheim",
+  29: "Esganed Demons — Niheim",
+  30: "Werewolf — Niheim",
+  31: "Undead Guardian / Dark Reapers — Cave 400 — Niheim",
+  32: "Dark Torturer — Cave 400 — Niheim",
+  33: "Torturer Zombie / Cursed Hands — Cave 400 — Niheim",
+  34: "Undead Dragon Lord — Cave 400 — Niheim",
+  35: "Undead Storm Dragon — Cave 400 — Niheim",
+  36: "Undead Gladiator / Warrior / Zombie — Cave 400 — Niheim",
+  37: "Dark Reaper / Demon — Cave 400 — Niheim",
+  38: "Cursed Death Book / Undead Guardians — Cave 400 — Niheim",
+  39: "Cursed Brain / Undead Storm Dragon — Cave 400 — Niheim",
+  40: "Undead Dragon Lord — Cave 400 — Niheim",
+  41: "Elite Undead Warrior / Infernal Demons (Palancas) — Cave 600 — Niheim",
+  42: "Piso Aspiral Undead Medusa — Cave 600 — Niheim",
+  43: "Elite Undead Warrior / Infernal Demons (Post Palancas) — Cave 600 — Niheim",
+  44: "Ice Spider / Mutated Rat — Mistland",
+  45: "Global Warrior — Mistland",
+  46: "Glacial Giant — Mistland",
+  47: "Snowbeast 1º Piso — Mistland",
+  48: "Snowbeast 2º Piso — Mistland",
+  49: "Snowbeast / Yeti — Mistland",
+  50: "Yeti 1º Piso — Mistland",
+  51: "Yeti 2º Piso — Mistland",
+  52: "Sabres — Mistland",
+  53: "Frost Dragon — Mistland",
+  54: "Frost Demon / Frost Vampire 1º Piso — Mistland",
+  55: "Frost Demon 2º Piso — Mistland",
+  56: "Frost Demon 3º Piso — Mistland",
+  57: "Frost Reappers / Ice Mutante Rats — Mistland",
+  58: "Dragons / Dragon Lords — Luxor",
+  59: "Dragon Lords — Luxor",
+  60: "Ancient Slime — Luxor",
+  61: "Ancient Scarab -1 — Luxor",
+  62: "Ancient Scarab -2 — Luxor",
+  63: "Scropion Imperador — Luxor",
+  64: "Mummia — Luxor",
+  65: "Behebull — Luxor",
+  66: "Behebull +1 — Luxor",
+  67: "Necromance — Surface — Luxor",
+  68: "Necromance -1 — Luxor",
+  69: "Necromance / Demons — Luxor",
+  70: "Falcons 1st Floor — Luxor",
+  71: "Falcon 2nd Floor — Luxor",
+  72: "Falcons 1st/2nd Floor (Lvl 800+) — Luxor",
+  73: "Green / Blue Djinn 1st Floor — Luxor",
+  74: "Green / Blue Djinn 2nd Floor — Luxor",
+  75: "Green / Blue Djinn 1st/2nd Floor (Lvl 800+) — Luxor",
+  76: "Undead Frost Dragon / Frost Dark Reapers — Mistland"
+};
 
-// Aktywne respy
-// nazwa => { userId, username, endTime, durationText, queue: [] }
-const respawns = new Map();
+const active = new Map();
 
+function getResp(number) {
+  const id = Number(number);
 
-// ==============================
-// FUNKCJE
-// ==============================
+  if (!Number.isInteger(id) || id < 1 || id > 76) {
+    return null;
+  }
 
-function parseTime(text) {
-  if (!text) return null;
+  return {
+    id,
+    name: RESPS[id]
+  };
+}
 
-  text = text.toLowerCase().trim();
+function parseTime(value) {
+  if (!value) return null;
 
-  // np. 2h
-  if (text.endsWith("h")) {
-    const hours = parseFloat(text.slice(0, -1));
+  value = value.toLowerCase().trim();
 
-    if (isNaN(hours) || hours <= 0) return null;
+  if (value.endsWith("h")) {
+    const hours = Number(value.slice(0, -1));
+
+    if (!hours || hours <= 0) return null;
 
     return {
       ms: hours * 60 * 60 * 1000,
@@ -48,10 +125,9 @@ function parseTime(text) {
     };
   }
 
-  // bez "h" = minuty
-  const minutes = parseInt(text);
+  const minutes = Number(value);
 
-  if (isNaN(minutes) || minutes <= 0) return null;
+  if (!minutes || minutes <= 0) return null;
 
   return {
     ms: minutes * 60 * 1000,
@@ -59,37 +135,12 @@ function parseTime(text) {
   };
 }
 
-
-function normalizeResp(name) {
-  return name.trim().toLowerCase();
-}
-
-
-function prettyName(name) {
-  return name
-    .split(" ")
-    .map(x => x.charAt(0).toUpperCase() + x.slice(1))
-    .join(" ");
-}
-
-
-// ==============================
-// BOT ONLINE
-// ==============================
-
 client.once("ready", () => {
   console.log(`✅ Bot online jako ${client.user.tag}`);
 });
 
-
-// ==============================
-// KOMENDY
-// ==============================
-
 client.on("messageCreate", async message => {
-
   if (message.author.bot) return;
-
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content
@@ -99,212 +150,148 @@ client.on("messageCreate", async message => {
 
   const command = args.shift()?.toLowerCase();
 
-
-  // =====================================
-  // !resp nazwa czas
-  //
-  // przykład:
-  // !resp falcons 2h
-  // =====================================
+  // ===============================
+  // !resp 72 2h
+  // ===============================
 
   if (command === "resp") {
+    const resp = getResp(args[0]);
+    const time = parseTime(args[1]);
 
-    if (args.length < 2) {
-      return message.reply(
-        "❌ Użycie: `!resp nazwa_respa czas`\nPrzykład: `!resp falcons 2h`"
-      );
+    if (!resp) {
+      return message.reply("❌ Podaj numer respa od `1` do `76`.");
     }
-
-    const timeText = args.pop();
-    const time = parseTime(timeText);
 
     if (!time) {
       return message.reply(
-        "❌ Nieprawidłowy czas.\nPrzykład: `2h` albo `30`."
+        "❌ Podaj czas, np. `2h` albo `30` minut.\nPrzykład: `!resp 72 2h`"
       );
     }
 
-    const originalName = args.join(" ");
-    const key = normalizeResp(originalName);
-
-    if (respawns.has(key)) {
-
-      const data = respawns.get(key);
+    if (active.has(resp.id)) {
+      const data = active.get(resp.id);
 
       return message.reply(
-        `❌ Ten resp jest już zajęty przez <@${data.userId}>.\n` +
-        `Użyj \`!respnext ${originalName}\`, aby wejść do kolejki.`
+        `🔴 **RESP #${resp.id} jest zajęty**\n` +
+        `🗺️ ${resp.name}\n` +
+        `👤 <@${data.userId}>\n\n` +
+        `Użyj \`!respnext ${resp.id}\`, aby wejść do kolejki.`
       );
     }
 
-    const endTime = Date.now() + time.ms;
-
-    respawns.set(key, {
-      name: originalName,
+    active.set(resp.id, {
+      id: resp.id,
+      name: resp.name,
       userId: message.author.id,
-      username: message.author.username,
-      endTime,
       durationMs: time.ms,
       durationText: time.text,
+      endTime: Date.now() + time.ms,
       queue: []
     });
 
+    const unix = Math.floor((Date.now() + time.ms) / 1000);
+
     const embed = new EmbedBuilder()
-      .setColor(0x57F287)
-      .setTitle("🎯 Respawn Marked")
+      .setColor(0xED4245)
+      .setTitle(`🔴 ZAJĘTY RESP #${resp.id}`)
       .setDescription(
-        `<@${message.author.id}> marked a respawn!`
-      )
-      .addFields(
-        {
-          name: "🗺️ Hunt",
-          value: prettyName(originalName)
-        },
-        {
-          name: "⚔️ Server",
-          value: "EUROPA"
-        },
-        {
-          name: "⏱️ Time",
-          value: time.text
-        }
-      )
-      .setTimestamp();
+        `**${resp.name}**\n\n` +
+        `👤 Zajęty przez: <@${message.author.id}>\n` +
+        `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+      );
 
-    await message.channel.send({
-      embeds: [embed]
-    });
-
-    return;
+    return message.channel.send({ embeds: [embed] });
   }
 
-
-  // =====================================
-  // !respnext nazwa
-  // =====================================
+  // ===============================
+  // !respnext 72
+  // ===============================
 
   if (command === "respnext") {
+    const resp = getResp(args[0]);
 
-    if (!args.length) {
-      return message.reply(
-        "❌ Użycie: `!respnext nazwa_respa`"
-      );
+    if (!resp) {
+      return message.reply("❌ Podaj numer respa od `1` do `76`.");
     }
 
-    const originalName = args.join(" ");
-    const key = normalizeResp(originalName);
+    const data = active.get(resp.id);
 
-    if (!respawns.has(key)) {
+    if (!data) {
       return message.reply(
-        "❌ Ten resp nie jest obecnie zajęty."
+        `🟢 **RESP #${resp.id} jest wolny.**\n` +
+        `Użyj \`!resp ${resp.id} 2h\`.`
       );
     }
-
-    const data = respawns.get(key);
 
     if (data.userId === message.author.id) {
-      return message.reply(
-        "❌ Już jesteś właścicielem tego respa."
-      );
+      return message.reply("❌ Ten resp jest już Twój.");
     }
 
     if (data.queue.includes(message.author.id)) {
-      return message.reply(
-        "❌ Już jesteś w kolejce NEXT."
-      );
+      return message.reply("❌ Jesteś już w kolejce NEXT.");
     }
 
     data.queue.push(message.author.id);
 
-    const position = data.queue.length;
-
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
-      .setTitle("⏩ Next en Cola")
+      .setTitle("⏩ NEXT — KOLEJKA")
       .setDescription(
-        `<@${message.author.id}> wszedł do kolejki NEXT!`
-      )
-      .addFields(
-        {
-          name: "🗺️ Hunt",
-          value: prettyName(data.name)
-        },
-        {
-          name: "📊 Position",
-          value: String(position)
-        }
-      )
-      .setTimestamp();
+        `<@${message.author.id}> wszedł do kolejki.\n\n` +
+        `🗺️ **RESP #${resp.id}**\n` +
+        `${resp.name}\n\n` +
+        `📊 Pozycja: **${data.queue.length}**`
+      );
 
-    await message.channel.send({
-      embeds: [embed]
-    });
-
-    return;
+    return message.channel.send({ embeds: [embed] });
   }
 
-
-  // =====================================
-  // !nextdel nazwa
-  // =====================================
+  // ===============================
+  // !nextdel 72
+  // ===============================
 
   if (command === "nextdel") {
+    const resp = getResp(args[0]);
 
-    if (!args.length) {
-      return message.reply(
-        "❌ Użycie: `!nextdel nazwa_respa`"
-      );
+    if (!resp) {
+      return message.reply("❌ Podaj numer respa od `1` do `76`.");
     }
 
-    const originalName = args.join(" ");
-    const key = normalizeResp(originalName);
+    const data = active.get(resp.id);
 
-    if (!respawns.has(key)) {
-      return message.reply(
-        "❌ Nie znaleziono tego respa."
-      );
+    if (!data) {
+      return message.reply("❌ Ten resp nie jest zajęty.");
     }
 
-    const data = respawns.get(key);
+    const position = data.queue.indexOf(message.author.id);
 
-    const index = data.queue.indexOf(message.author.id);
-
-    if (index === -1) {
-      return message.reply(
-        "❌ Nie jesteś w kolejce NEXT."
-      );
+    if (position === -1) {
+      return message.reply("❌ Nie jesteś w kolejce NEXT.");
     }
 
-    data.queue.splice(index, 1);
+    data.queue.splice(position, 1);
 
     return message.reply(
-      `✅ Usunięto Cię z kolejki NEXT dla **${prettyName(data.name)}**.`
+      `✅ Usunięto Cię z kolejki NEXT dla **RESP #${resp.id}**.`
     );
   }
 
-
-  // =====================================
-  // !respdel nazwa
-  // =====================================
+  // ===============================
+  // !respdel 72
+  // ===============================
 
   if (command === "respdel") {
+    const resp = getResp(args[0]);
 
-    if (!args.length) {
-      return message.reply(
-        "❌ Użycie: `!respdel nazwa_respa`"
-      );
+    if (!resp) {
+      return message.reply("❌ Podaj numer respa od `1` do `76`.");
     }
 
-    const originalName = args.join(" ");
-    const key = normalizeResp(originalName);
+    const data = active.get(resp.id);
 
-    if (!respawns.has(key)) {
-      return message.reply(
-        "❌ Ten resp nie jest zajęty."
-      );
+    if (!data) {
+      return message.reply(`🟢 RESP #${resp.id} jest już wolny.`);
     }
-
-    const data = respawns.get(key);
 
     if (data.userId !== message.author.id) {
       return message.reply(
@@ -312,160 +299,179 @@ client.on("messageCreate", async message => {
       );
     }
 
-    // Jeśli ktoś jest NEXT
     if (data.queue.length > 0) {
-
       const oldUser = data.userId;
       const nextUser = data.queue.shift();
 
       data.userId = nextUser;
       data.endTime = Date.now() + data.durationMs;
 
-      const embed = new EmbedBuilder()
-        .setColor(0x3498DB)
-        .setTitle("🔄 Next Claim!")
-        .setDescription(
-          `👤 <@${oldUser}> opuścił hunt **${prettyName(data.name)}**\n` +
-          `👤 <@${nextUser}> jest teraz na respie.`
-        )
-        .setTimestamp();
-
-      await message.channel.send({
-        embeds: [embed]
-      });
-
-    } else {
-
-      respawns.delete(key);
+      const unix = Math.floor(data.endTime / 1000);
 
       const embed = new EmbedBuilder()
-        .setColor(0xED4245)
-        .setTitle("📭 Respawn Free")
+        .setColor(0x5865F2)
+        .setTitle(`🔄 NEXT CLAIM — RESP #${resp.id}`)
         .setDescription(
-          `**${prettyName(data.name)}** jest teraz wolny.`
-        )
-        .setTimestamp();
+          `🗺️ **${resp.name}**\n\n` +
+          `👤 <@${oldUser}> zwolnił resp.\n` +
+          `👤 <@${nextUser}> przejmuje resp.\n` +
+          `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+        );
 
-      await message.channel.send({
-        embeds: [embed]
-      });
+      return message.channel.send({ embeds: [embed] });
     }
 
-    return;
+    active.delete(resp.id);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57F287)
+      .setTitle(`🟢 ZWOLNIONY RESP #${resp.id}`)
+      .setDescription(
+        `**${resp.name}**\n\n` +
+        `Resp zwolniony przez <@${message.author.id}>.`
+      );
+
+    return message.channel.send({ embeds: [embed] });
   }
 
-
-  // =====================================
+  // ===============================
   // !list
-  // =====================================
+  // ===============================
 
   if (command === "list") {
-
-    if (respawns.size === 0) {
+    if (active.size === 0) {
       return message.channel.send(
-        "📭 **Brak aktywnych respów.**"
+        "📭 **Brak aktywnych respów. Wszystkie są wolne.**"
       );
     }
+
+    const sorted = [...active.values()]
+      .sort((a, b) => a.id - b.id);
 
     let text = "";
 
-    for (const data of respawns.values()) {
-
+    for (const data of sorted) {
       const unix = Math.floor(data.endTime / 1000);
 
       text +=
-        `🎯 **${prettyName(data.name)}**\n` +
+        `🔴 **#${data.id} ${data.name}**\n` +
         `👤 <@${data.userId}>\n` +
-        `⏱️ koniec: <t:${unix}:R>\n` +
+        `⏳ <t:${unix}:R>\n` +
         `⏩ NEXT: ${data.queue.length}\n\n`;
     }
 
+    if (text.length > 4000) {
+      text = text.slice(0, 3900) + "\n...";
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0xF1C40F)
-      .setTitle("🎯 Lista Respawns Activos – EUROPA")
+      .setTitle("🎯 Lista aktywnych respów — EUROPA")
       .setDescription(text);
 
-    await message.channel.send({
-      embeds: [embed]
-    });
-
-    return;
+    return message.channel.send({ embeds: [embed] });
   }
 
+  // ===============================
+  // !wolne
+  // ===============================
 
-  // =====================================
-  // !help
-  // =====================================
+  if (command === "wolne") {
+    const free = [];
 
-  if (command === "help") {
+    for (let id = 1; id <= 76; id++) {
+      if (!active.has(id)) {
+        free.push(`#${id} ${RESPS[id]}`);
+      }
+    }
+
+    let text = free.join("\n");
+
+    if (text.length > 4000) {
+      text = text.slice(0, 3900) + "\n...";
+    }
 
     const embed = new EmbedBuilder()
-      .setColor(0xF1C40F)
-      .setTitle("📖 Helmo Claim Bot")
-      .setDescription(
-        "**Komendy:**\n\n" +
+      .setColor(0x57F287)
+      .setTitle(`🟢 Wolne respy (${free.length}/76)`)
+      .setDescription(text || "Brak wolnych respów.");
 
-        "`!resp nazwa 2h`\n" +
-        "Zajmuje resp.\n\n" +
-
-        "`!respnext nazwa`\n" +
-        "Dodaje Cię do NEXT.\n\n" +
-
-        "`!respdel nazwa`\n" +
-        "Zwalnia resp.\n\n" +
-
-        "`!nextdel nazwa`\n" +
-        "Usuwa Cię z NEXT.\n\n" +
-
-        "`!list`\n" +
-        "Pokazuje aktywne respy."
-      );
-
-    await message.channel.send({
-      embeds: [embed]
-    });
-
-    return;
+    return message.channel.send({ embeds: [embed] });
   }
 
+  // ===============================
+  // !respinfo 72
+  // ===============================
+
+  if (command === "respinfo") {
+    const resp = getResp(args[0]);
+
+    if (!resp) {
+      return message.reply("❌ Podaj numer respa od `1` do `76`.");
+    }
+
+    const data = active.get(resp.id);
+
+    if (!data) {
+      return message.channel.send(
+        `🟢 **RESP #${resp.id} — WOLNY**\n🗺️ ${resp.name}`
+      );
+    }
+
+    const unix = Math.floor(data.endTime / 1000);
+
+    return message.channel.send(
+      `🔴 **RESP #${resp.id} — ZAJĘTY**\n` +
+      `🗺️ ${resp.name}\n` +
+      `👤 <@${data.userId}>\n` +
+      `⏳ <t:${unix}:R>\n` +
+      `⏩ NEXT: ${data.queue.length}`
+    );
+  }
+
+  // ===============================
+  // !help
+  // ===============================
+
+  if (command === "help") {
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setTitle("📖 Helmo Claim Bot")
+      .setDescription(
+        "`!resp 72 2h` — zajmij resp\n\n" +
+        "`!respnext 72` — wejdź do NEXT\n\n" +
+        "`!respdel 72` — zwolnij resp\n\n" +
+        "`!nextdel 72` — wyjdź z NEXT\n\n" +
+        "`!respinfo 72` — informacje o respie\n\n" +
+        "`!list` — aktywne respy\n\n" +
+        "`!wolne` — wolne respy"
+      );
+
+    return message.channel.send({ embeds: [embed] });
+  }
 });
 
-
-// ==============================
-// AUTOMATYCZNE KOŃCZENIE CLAIMÓW
-// ==============================
+// automatyczne wygasanie
 
 setInterval(async () => {
-
   const now = Date.now();
 
-  for (const [key, data] of respawns) {
-
+  for (const [id, data] of active.entries()) {
     if (now < data.endTime) continue;
 
     if (data.queue.length > 0) {
-
       const nextUser = data.queue.shift();
 
       data.userId = nextUser;
-      data.endTime = Date.now() + data.durationMs;
-
+      data.endTime = now + data.durationMs;
     } else {
-
-      respawns.delete(key);
-
+      active.delete(id);
     }
   }
-
-}, 30000);
-
-
-// ==============================
-// START
-// ==============================
+}, 15000);
 
 if (!TOKEN) {
-  console.error("❌ Brak zmiennej DISCORD_TOKEN");
+  console.error("❌ Brak DISCORD_TOKEN");
   process.exit(1);
 }
 
