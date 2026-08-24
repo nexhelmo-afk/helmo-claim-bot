@@ -15,11 +15,14 @@ const client = new Client({
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = "!";
 
-// Kanał #list-respawn
+// #list-respawn
 const STATUS_CHANNEL_ID = "1541221779954081834";
 
-// Kanał #komendy-bota
+// #komendy-bota
 const COMMANDS_CHANNEL_ID = "1541231781968224266";
+
+// #aktywne-respy — pokazuje tylko WOLNE respy
+const FREE_CHANNEL_ID = "1541244599970832434";
 
 const RESPS = {
   1: "Vampire — Niheim",
@@ -103,6 +106,7 @@ const RESPS = {
 const active = new Map();
 
 let statusMessageIds = [];
+let freeMessageIds = [];
 
 // ====================================================
 // PODSTAWOWE FUNKCJE
@@ -148,15 +152,17 @@ function parseTime(value) {
 }
 
 // ====================================================
-// LISTA RESPAWNÓW 🟢 / 🔴
+// #list-respawn — ZIELONE / CZERWONE
 // ====================================================
 
 async function updateRespStatus() {
   try {
-    const channel = await client.channels.fetch(STATUS_CHANNEL_ID);
+    const channel = await client.channels.fetch(
+      STATUS_CHANNEL_ID
+    );
 
     if (!channel || !channel.isTextBased()) {
-      console.log("❌ Nie znaleziono kanału #list-respawn");
+      console.log("❌ Nie znaleziono #list-respawn");
       return;
     }
 
@@ -166,7 +172,6 @@ async function updateRespStatus() {
     const lines = [];
 
     for (let id = 1; id <= 76; id++) {
-
       if (active.has(id)) {
         busyCount++;
 
@@ -177,7 +182,6 @@ async function updateRespStatus() {
           `🔴 **#${id}** ${RESPS[id]}\n` +
           `👤 <@${data.userId}> • ⏳ <t:${unix}:R>`
         );
-
       } else {
         freeCount++;
 
@@ -196,7 +200,6 @@ async function updateRespStatus() {
     let current = header;
 
     for (const line of lines) {
-
       const next = `${line}\n\n`;
 
       if ((current + next).length > 1900) {
@@ -212,12 +215,11 @@ async function updateRespStatus() {
     }
 
     if (statusMessageIds.length === 0) {
-
-      const recentMessages = await channel.messages.fetch({
+      const messages = await channel.messages.fetch({
         limit: 20
       });
 
-      const oldBotMessages = [...recentMessages.values()]
+      const old = [...messages.values()]
         .filter(msg =>
           msg.author.id === client.user.id &&
           (
@@ -226,19 +228,19 @@ async function updateRespStatus() {
             msg.content.includes("🔴 **#")
           )
         )
-        .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        .sort(
+          (a, b) =>
+            a.createdTimestamp - b.createdTimestamp
+        );
 
-      statusMessageIds = oldBotMessages.map(msg => msg.id);
+      statusMessageIds = old.map(msg => msg.id);
     }
 
     for (let i = 0; i < chunks.length; i++) {
-
       let edited = false;
 
       if (statusMessageIds[i]) {
-
         try {
-
           const msg = await channel.messages.fetch(
             statusMessageIds[i]
           );
@@ -246,14 +248,12 @@ async function updateRespStatus() {
           await msg.edit(chunks[i]);
 
           edited = true;
-
         } catch {
           edited = false;
         }
       }
 
       if (!edited) {
-
         const msg = await channel.send(chunks[i]);
 
         statusMessageIds[i] = msg.id;
@@ -261,19 +261,13 @@ async function updateRespStatus() {
     }
 
     if (statusMessageIds.length > chunks.length) {
-
-      const excessIds =
+      const excess =
         statusMessageIds.slice(chunks.length);
 
-      for (const id of excessIds) {
-
+      for (const id of excess) {
         try {
-
-          const msg =
-            await channel.messages.fetch(id);
-
+          const msg = await channel.messages.fetch(id);
           await msg.delete();
-
         } catch {}
       }
 
@@ -282,154 +276,254 @@ async function updateRespStatus() {
     }
 
   } catch (error) {
-
     console.error(
-      "❌ Błąd aktualizacji #list-respawn:",
+      "❌ Błąd #list-respawn:",
       error
     );
   }
 }
 
 // ====================================================
-// KANAŁ KOMEND PL / EN
+// #aktywne-respy — TYLKO WOLNE RESPY
+// ====================================================
+
+async function updateFreeRespChannel() {
+  try {
+    const channel = await client.channels.fetch(
+      FREE_CHANNEL_ID
+    );
+
+    if (!channel || !channel.isTextBased()) {
+      console.log("❌ Nie znaleziono #aktywne-respy");
+      return;
+    }
+
+    const free = [];
+
+    for (let id = 1; id <= 76; id++) {
+      if (!active.has(id)) {
+        free.push(
+          `🟢 **#${id}** ${RESPS[id]}`
+        );
+      }
+    }
+
+    const header =
+      `# 🟢 WOLNE RESPY\n\n` +
+      `**Wolne: ${free.length}/76**\n` +
+      `🔄 Aktualizacja automatyczna co 30 sekund\n\n`;
+
+    const chunks = [];
+    let current = header;
+
+    for (const line of free) {
+      const next = `${line}\n`;
+
+      if ((current + next).length > 1900) {
+        chunks.push(current);
+        current = "";
+      }
+
+      current += next;
+    }
+
+    if (current.length > 0) {
+      chunks.push(current);
+    }
+
+    if (chunks.length === 0) {
+      chunks.push(
+        `# 🟢 WOLNE RESPY\n\n` +
+        `**Wolne: 0/76**\n\n` +
+        `🔴 Brak wolnych respów.`
+      );
+    }
+
+    if (freeMessageIds.length === 0) {
+      const messages = await channel.messages.fetch({
+        limit: 20
+      });
+
+      const old = [...messages.values()]
+        .filter(msg =>
+          msg.author.id === client.user.id &&
+          (
+            msg.content.includes("WOLNE RESPY") ||
+            msg.content.includes("🟢 **#")
+          )
+        )
+        .sort(
+          (a, b) =>
+            a.createdTimestamp - b.createdTimestamp
+        );
+
+      freeMessageIds = old.map(msg => msg.id);
+    }
+
+    for (let i = 0; i < chunks.length; i++) {
+      let edited = false;
+
+      if (freeMessageIds[i]) {
+        try {
+          const msg = await channel.messages.fetch(
+            freeMessageIds[i]
+          );
+
+          await msg.edit(chunks[i]);
+
+          edited = true;
+        } catch {
+          edited = false;
+        }
+      }
+
+      if (!edited) {
+        const msg = await channel.send(chunks[i]);
+
+        freeMessageIds[i] = msg.id;
+      }
+    }
+
+    if (freeMessageIds.length > chunks.length) {
+      const excess =
+        freeMessageIds.slice(chunks.length);
+
+      for (const id of excess) {
+        try {
+          const msg = await channel.messages.fetch(id);
+          await msg.delete();
+        } catch {}
+      }
+
+      freeMessageIds =
+        freeMessageIds.slice(0, chunks.length);
+    }
+
+  } catch (error) {
+    console.error(
+      "❌ Błąd #aktywne-respy:",
+      error
+    );
+  }
+}
+
+// ====================================================
+// #komendy-bota — PL / EN
 // ====================================================
 
 async function updateCommandsChannel() {
-
   try {
-
-    const channel =
-      await client.channels.fetch(COMMANDS_CHANNEL_ID);
+    const channel = await client.channels.fetch(
+      COMMANDS_CHANNEL_ID
+    );
 
     if (!channel || !channel.isTextBased()) {
-
-      console.log(
-        "❌ Nie znaleziono kanału #komendy-bota"
-      );
-
+      console.log("❌ Nie znaleziono #komendy-bota");
       return;
     }
 
     const embed = new EmbedBuilder()
-
       .setColor(0x5865F2)
-
       .setTitle(
         "📖 HELMO CLAIM BOT — KOMENDY / COMMANDS"
       )
-
       .setDescription(
         "🇵🇱 **Instrukcja obsługi bota**\n" +
         "🇬🇧 **Bot usage guide**"
       )
-
       .addFields(
-
         {
           name: "🎯 !resp 72 2h",
           value:
             "🇵🇱 Zajmuje wybrany resp na określony czas.\n" +
-            "Przykład: `!resp 72 2h` → zajmuje RESP #72 na 2 godziny.\n\n" +
+            "Przykład: `!resp 72 2h` — RESP #72 na 2 godziny.\n\n" +
             "🇬🇧 Claims the selected respawn for a specified time.\n" +
-            "Example: `!resp 72 2h` → claims RESP #72 for 2 hours."
+            "Example: `!resp 72 2h` — RESP #72 for 2 hours."
         },
-
         {
           name: "⏩ !respnext 72",
           value:
             "🇵🇱 Dodaje Cię do kolejki NEXT na zajęty resp.\n" +
-            "Gdy obecny gracz zwolni resp, pierwsza osoba z kolejki go przejmuje.\n\n" +
+            "Pierwsza osoba w kolejce przejmuje resp po jego zwolnieniu.\n\n" +
             "🇬🇧 Adds you to the NEXT queue for an occupied respawn.\n" +
-            "When the current player releases it, the first player in queue takes over."
+            "The first player in queue takes over after it is released."
         },
-
         {
           name: "🟢 !respdel 72",
           value:
             "🇵🇱 Zwalnia zajęty przez Ciebie resp.\n" +
-            "Jeśli ktoś czeka w NEXT, resp zostanie przekazany pierwszej osobie z kolejki.\n\n" +
+            "Jeżeli jest NEXT, resp przejmuje pierwsza osoba z kolejki.\n\n" +
             "🇬🇧 Releases your claimed respawn.\n" +
-            "If someone is waiting in NEXT, the respawn is transferred to the first player in queue."
+            "If there is a NEXT queue, the first player takes over."
         },
-
         {
           name: "❌ !nextdel 72",
           value:
-            "🇵🇱 Usuwa Cię z kolejki NEXT dla danego respa.\n\n" +
-            "🇬🇧 Removes you from the NEXT queue for the selected respawn."
+            "🇵🇱 Usuwa Cię z kolejki NEXT.\n\n" +
+            "🇬🇧 Removes you from the NEXT queue."
         },
-
         {
           name: "🔎 !respinfo 72",
           value:
-            "🇵🇱 Pokazuje status wybranego respa: wolny/zajęty, właściciela, czas i NEXT.\n\n" +
-            "🇬🇧 Shows the selected respawn status: free/occupied, owner, time and NEXT queue."
+            "🇵🇱 Pokazuje status respa, gracza, czas oraz NEXT.\n\n" +
+            "🇬🇧 Shows respawn status, player, time and NEXT queue."
         },
-
         {
-          name: "🔴 !list",
+          name: "📋 !list",
           value:
-            "🇵🇱 Pokazuje wszystkie aktualnie zajęte respy.\n\n" +
-            "🇬🇧 Shows all currently occupied respawns."
+            "🇵🇱 Przenosi do kanału z aktualną listą wolnych respów.\n\n" +
+            "🇬🇧 Opens the channel containing the current list of free respawns."
         },
-
         {
           name: "🟢 !wolne",
           value:
-            "🇵🇱 Pokazuje wszystkie aktualnie wolne respy.\n\n" +
-            "🇬🇧 Shows all currently available respawns."
+            "🇵🇱 Pokazuje wolne respy w odpowiedzi bota.\n\n" +
+            "🇬🇧 Shows available respawns in the bot response."
         },
-
         {
           name: "📖 !help",
           value:
             "🇵🇱 Wyświetla skróconą listę komend.\n\n" +
             "🇬🇧 Displays a short list of commands."
         },
-
         {
-          name: "⏱️ FORMAT CZASU / TIME FORMAT",
+          name: "⏱️ CZAS / TIME",
           value:
             "🇵🇱 `30` = 30 minut • `60` = 60 minut • `1h` = 1 godzina • `2h` = 2 godziny\n\n" +
             "🇬🇧 `30` = 30 minutes • `60` = 60 minutes • `1h` = 1 hour • `2h` = 2 hours"
         }
       )
-
       .setFooter({
         text: "Helmo Claim Bot • PL / EN"
       });
 
-    const recentMessages =
-      await channel.messages.fetch({
-        limit: 20
-      });
+    const messages = await channel.messages.fetch({
+      limit: 20
+    });
 
-    const existing =
-      [...recentMessages.values()].find(msg =>
+    const existing = [...messages.values()].find(
+      msg =>
         msg.author.id === client.user.id &&
-        msg.embeds?.some(e =>
-          e.title ===
-          "📖 HELMO CLAIM BOT — KOMENDY / COMMANDS"
+        msg.embeds?.some(
+          e =>
+            e.title ===
+            "📖 HELMO CLAIM BOT — KOMENDY / COMMANDS"
         )
-      );
+    );
 
     if (existing) {
-
       await existing.edit({
         embeds: [embed]
       });
-
     } else {
-
       await channel.send({
         embeds: [embed]
       });
     }
 
   } catch (error) {
-
     console.error(
-      "❌ Błąd aktualizacji #komendy-bota:",
+      "❌ Błąd #komendy-bota:",
       error
     );
   }
@@ -440,14 +534,13 @@ async function updateCommandsChannel() {
 // ====================================================
 
 client.once("ready", async () => {
-
   console.log(
     `✅ Bot online jako ${client.user.tag}`
   );
 
   await updateRespStatus();
-
   await updateCommandsChannel();
+  await updateFreeRespChannel();
 });
 
 // ====================================================
@@ -455,9 +548,7 @@ client.once("ready", async () => {
 // ====================================================
 
 client.on("messageCreate", async message => {
-
   if (message.author.bot) return;
-
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content
@@ -473,20 +564,16 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "resp") {
-
     const resp = getResp(args[0]);
-
     const time = parseTime(args[1]);
 
     if (!resp) {
-
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
     if (!time) {
-
       return message.reply(
         "❌ Podaj czas, np. `2h` albo `30` minut.\n" +
         "Przykład: `!resp 72 2h`"
@@ -494,7 +581,6 @@ client.on("messageCreate", async message => {
     }
 
     if (active.has(resp.id)) {
-
       const data = active.get(resp.id);
 
       return message.reply(
@@ -509,41 +595,32 @@ client.on("messageCreate", async message => {
       Date.now() + time.ms;
 
     active.set(resp.id, {
-
       id: resp.id,
-
       name: resp.name,
-
       userId: message.author.id,
-
       durationMs: time.ms,
-
       durationText: time.text,
-
       endTime,
-
       queue: []
     });
 
+    // Aktualizacja obu list
     await updateRespStatus();
+    await updateFreeRespChannel();
 
     const unix =
       Math.floor(endTime / 1000);
 
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(0xED4245)
-
-        .setTitle(
-          `🔴 ZAJĘTY RESP #${resp.id}`
-        )
-
-        .setDescription(
-          `**${resp.name}**\n\n` +
-          `👤 Zajęty przez: <@${message.author.id}>\n` +
-          `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
-        );
+    const embed = new EmbedBuilder()
+      .setColor(0xED4245)
+      .setTitle(
+        `🔴 ZAJĘTY RESP #${resp.id}`
+      )
+      .setDescription(
+        `**${resp.name}**\n\n` +
+        `👤 Zajęty przez: <@${message.author.id}>\n` +
+        `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
+      );
 
     return message.channel.send({
       embeds: [embed]
@@ -555,68 +632,48 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "respnext") {
-
-    const resp =
-      getResp(args[0]);
+    const resp = getResp(args[0]);
 
     if (!resp) {
-
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data =
-      active.get(resp.id);
+    const data = active.get(resp.id);
 
     if (!data) {
-
       return message.reply(
         `🟢 **RESP #${resp.id} jest wolny.**\n` +
         `Użyj \`!resp ${resp.id} 2h\`.`
       );
     }
 
-    if (
-      data.userId ===
-      message.author.id
-    ) {
-
+    if (data.userId === message.author.id) {
       return message.reply(
         "❌ Ten resp jest już Twój."
       );
     }
 
     if (
-      data.queue.includes(
-        message.author.id
-      )
+      data.queue.includes(message.author.id)
     ) {
-
       return message.reply(
         "❌ Jesteś już w kolejce NEXT."
       );
     }
 
-    data.queue.push(
-      message.author.id
-    );
+    data.queue.push(message.author.id);
 
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(0x5865F2)
-
-        .setTitle(
-          "⏩ NEXT — KOLEJKA"
-        )
-
-        .setDescription(
-          `<@${message.author.id}> wszedł do kolejki.\n\n` +
-          `🗺️ **RESP #${resp.id}**\n` +
-          `${resp.name}\n\n` +
-          `📊 Pozycja: **${data.queue.length}**`
-        );
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setTitle("⏩ NEXT — KOLEJKA")
+      .setDescription(
+        `<@${message.author.id}> wszedł do kolejki.\n\n` +
+        `🗺️ **RESP #${resp.id}**\n` +
+        `${resp.name}\n\n` +
+        `📊 Pozycja: **${data.queue.length}**`
+      );
 
     return message.channel.send({
       embeds: [embed]
@@ -628,43 +685,32 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "nextdel") {
-
-    const resp =
-      getResp(args[0]);
+    const resp = getResp(args[0]);
 
     if (!resp) {
-
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data =
-      active.get(resp.id);
+    const data = active.get(resp.id);
 
     if (!data) {
-
       return message.reply(
         "❌ Ten resp nie jest zajęty."
       );
     }
 
     const position =
-      data.queue.indexOf(
-        message.author.id
-      );
+      data.queue.indexOf(message.author.id);
 
     if (position === -1) {
-
       return message.reply(
         "❌ Nie jesteś w kolejce NEXT."
       );
     }
 
-    data.queue.splice(
-      position,
-      1
-    );
+    data.queue.splice(position, 1);
 
     return message.reply(
       `✅ Usunięto Cię z kolejki NEXT dla **RESP #${resp.id}**.`
@@ -676,105 +722,78 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "respdel") {
-
-    const resp =
-      getResp(args[0]);
+    const resp = getResp(args[0]);
 
     if (!resp) {
-
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data =
-      active.get(resp.id);
+    const data = active.get(resp.id);
 
     if (!data) {
-
       return message.reply(
         `🟢 RESP #${resp.id} jest już wolny.`
       );
     }
 
     if (
-      data.userId !==
-      message.author.id
+      data.userId !== message.author.id
     ) {
-
       return message.reply(
         "❌ Tylko osoba zajmująca resp może go zwolnić."
       );
     }
 
-    if (
-      data.queue.length > 0
-    ) {
+    // NEXT przejmuje resp
+    if (data.queue.length > 0) {
+      const oldUser = data.userId;
+      const nextUser = data.queue.shift();
 
-      const oldUser =
-        data.userId;
-
-      const nextUser =
-        data.queue.shift();
-
-      data.userId =
-        nextUser;
+      data.userId = nextUser;
 
       data.endTime =
-        Date.now() +
-        data.durationMs;
+        Date.now() + data.durationMs;
 
       await updateRespStatus();
+      await updateFreeRespChannel();
 
       const unix =
-        Math.floor(
-          data.endTime / 1000
+        Math.floor(data.endTime / 1000);
+
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setTitle(
+          `🔄 NEXT CLAIM — RESP #${resp.id}`
+        )
+        .setDescription(
+          `🗺️ **${resp.name}**\n\n` +
+          `👤 <@${oldUser}> zwolnił resp.\n` +
+          `👤 <@${nextUser}> przejmuje resp.\n` +
+          `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
         );
-
-      const embed =
-        new EmbedBuilder()
-
-          .setColor(
-            0x5865F2
-          )
-
-          .setTitle(
-            `🔄 NEXT CLAIM — RESP #${resp.id}`
-          )
-
-          .setDescription(
-            `🗺️ **${resp.name}**\n\n` +
-            `👤 <@${oldUser}> zwolnił resp.\n` +
-            `👤 <@${nextUser}> przejmuje resp.\n` +
-            `⏳ Do: <t:${unix}:t> (<t:${unix}:R>)`
-          );
 
       return message.channel.send({
         embeds: [embed]
       });
     }
 
-    active.delete(
-      resp.id
-    );
+    // Brak NEXT — resp staje się wolny
+    active.delete(resp.id);
 
     await updateRespStatus();
+    await updateFreeRespChannel();
 
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(
-          0x57F287
-        )
-
-        .setTitle(
-          `🟢 ZWOLNIONY RESP #${resp.id}`
-        )
-
-        .setDescription(
-          `**${resp.name}**\n\n` +
-          `Resp zwolniony przez <@${message.author.id}>.`
-        );
+    const embed = new EmbedBuilder()
+      .setColor(0x57F287)
+      .setTitle(
+        `🟢 ZWOLNIONY RESP #${resp.id}`
+      )
+      .setDescription(
+        `**${resp.name}**\n\n` +
+        `Resp zwolniony przez <@${message.author.id}>.`
+      );
 
     return message.channel.send({
       embeds: [embed]
@@ -786,68 +805,9 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "list") {
-
-    if (active.size === 0) {
-
-      return message.channel.send(
-        "📭 **Brak aktywnych respów. Wszystkie są wolne.**"
-      );
-    }
-
-    const sorted =
-      [...active.values()]
-        .sort(
-          (a, b) =>
-            a.id - b.id
-        );
-
-    let text = "";
-
-    for (
-      const data of sorted
-    ) {
-
-      const unix =
-        Math.floor(
-          data.endTime / 1000
-        );
-
-      text +=
-        `🔴 **#${data.id} ${data.name}**\n` +
-        `👤 <@${data.userId}>\n` +
-        `⏳ <t:${unix}:R>\n` +
-        `⏩ NEXT: ${data.queue.length}\n\n`;
-    }
-
-    if (
-      text.length > 4000
-    ) {
-
-      text =
-        text.slice(
-          0,
-          3900
-        ) + "\n...";
-    }
-
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(
-          0xF1C40F
-        )
-
-        .setTitle(
-          "🎯 Lista aktywnych respów — EUROPA"
-        )
-
-        .setDescription(
-          text
-        );
-
-    return message.channel.send({
-      embeds: [embed]
-    });
+    return message.reply(
+      `📋 Lista **wolnych respów** znajduje się tutaj: <#${FREE_CHANNEL_ID}>`
+    );
   }
 
   // ==================================================
@@ -855,54 +815,32 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "wolne") {
-
     const free = [];
 
-    for (
-      let id = 1;
-      id <= 76;
-      id++
-    ) {
-
-      if (
-        !active.has(id)
-      ) {
-
+    for (let id = 1; id <= 76; id++) {
+      if (!active.has(id)) {
         free.push(
           `#${id} ${RESPS[id]}`
         );
       }
     }
 
-    let text =
-      free.join("\n");
+    let text = free.join("\n");
 
-    if (
-      text.length > 4000
-    ) {
-
+    if (text.length > 4000) {
       text =
-        text.slice(
-          0,
-          3900
-        ) + "\n...";
+        text.slice(0, 3900) +
+        "\n...";
     }
 
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(
-          0x57F287
-        )
-
-        .setTitle(
-          `🟢 Wolne respy (${free.length}/76)`
-        )
-
-        .setDescription(
-          text ||
-          "Brak wolnych respów."
-        );
+    const embed = new EmbedBuilder()
+      .setColor(0x57F287)
+      .setTitle(
+        `🟢 Wolne respy (${free.length}/76)`
+      )
+      .setDescription(
+        text || "Brak wolnych respów."
+      );
 
     return message.channel.send({
       embeds: [embed]
@@ -913,26 +851,18 @@ client.on("messageCreate", async message => {
   // !respinfo 72
   // ==================================================
 
-  if (
-    command ===
-    "respinfo"
-  ) {
-
-    const resp =
-      getResp(args[0]);
+  if (command === "respinfo") {
+    const resp = getResp(args[0]);
 
     if (!resp) {
-
       return message.reply(
         "❌ Podaj numer respa od `1` do `76`."
       );
     }
 
-    const data =
-      active.get(resp.id);
+    const data = active.get(resp.id);
 
     if (!data) {
-
       return message.channel.send(
         `🟢 **RESP #${resp.id} — WOLNY**\n` +
         `🗺️ ${resp.name}`
@@ -940,9 +870,7 @@ client.on("messageCreate", async message => {
     }
 
     const unix =
-      Math.floor(
-        data.endTime / 1000
-      );
+      Math.floor(data.endTime / 1000);
 
     return message.channel.send(
       `🔴 **RESP #${resp.id} — ZAJĘTY**\n` +
@@ -958,27 +886,18 @@ client.on("messageCreate", async message => {
   // ==================================================
 
   if (command === "help") {
-
-    const embed =
-      new EmbedBuilder()
-
-        .setColor(
-          0x5865F2
-        )
-
-        .setTitle(
-          "📖 Helmo Claim Bot"
-        )
-
-        .setDescription(
-          "`!resp 72 2h` — zajmij resp\n\n" +
-          "`!respnext 72` — wejdź do NEXT\n\n" +
-          "`!respdel 72` — zwolnij resp\n\n" +
-          "`!nextdel 72` — wyjdź z NEXT\n\n" +
-          "`!respinfo 72` — informacje o respie\n\n" +
-          "`!list` — aktywne respy\n\n" +
-          "`!wolne` — wolne respy"
-        );
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setTitle("📖 Helmo Claim Bot")
+      .setDescription(
+        "`!resp 72 2h` — zajmij resp\n\n" +
+        "`!respnext 72` — wejdź do NEXT\n\n" +
+        "`!respdel 72` — zwolnij resp\n\n" +
+        "`!nextdel 72` — wyjdź z NEXT\n\n" +
+        "`!respinfo 72` — informacje o respie\n\n" +
+        "`!list` — kanał z wolnymi respami\n\n" +
+        "`!wolne` — pokaż wolne respy"
+      );
 
     return message.channel.send({
       embeds: [embed]
@@ -990,82 +909,64 @@ client.on("messageCreate", async message => {
 // AUTOMATYCZNE WYGASANIE
 // ====================================================
 
-setInterval(
-  async () => {
+setInterval(async () => {
+  const now = Date.now();
 
-    const now =
-      Date.now();
+  let changed = false;
 
-    let changed =
-      false;
-
-    for (
-      const [id, data]
-      of active.entries()
-    ) {
-
-      if (
-        now < data.endTime
-      ) {
-        continue;
-      }
-
-      if (
-        data.queue.length > 0
-      ) {
-
-        const nextUser =
-          data.queue.shift();
-
-        data.userId =
-          nextUser;
-
-        data.endTime =
-          now +
-          data.durationMs;
-
-        changed =
-          true;
-
-      } else {
-
-        active.delete(id);
-
-        changed =
-          true;
-      }
+  for (const [id, data] of active.entries()) {
+    if (now < data.endTime) {
+      continue;
     }
 
-    if (changed) {
+    // Jeśli ktoś jest w NEXT
+    if (data.queue.length > 0) {
+      const nextUser =
+        data.queue.shift();
 
-      await updateRespStatus();
+      data.userId = nextUser;
+
+      data.endTime =
+        now + data.durationMs;
+
+      changed = true;
+    } else {
+      // Brak NEXT — resp wolny
+      active.delete(id);
+
+      changed = true;
     }
+  }
 
-  },
-  15000
-);
-
-// Odświeżenie listy co minutę
-
-setInterval(
-  async () => {
-
+  if (changed) {
     await updateRespStatus();
+    await updateFreeRespChannel();
+  }
 
-  },
-  60000
-);
+}, 15000);
 
 // ====================================================
-// START
+// ODŚWIEŻANIE #list-respawn
+// ====================================================
+
+setInterval(async () => {
+  await updateRespStatus();
+}, 60000);
+
+// ====================================================
+// ODŚWIEŻANIE WOLNYCH RESPÓW CO 30 SEKUND
+// ====================================================
+
+setInterval(async () => {
+  await updateFreeRespChannel();
+}, 30000);
+
+// ====================================================
+// START BOTA
 // ====================================================
 
 if (!TOKEN) {
-
-  console.error(
-    "❌ Brak DISCORD_TOKEN"
-  );
-
+  console.error("❌ Brak DISCORD_TOKEN");
   process.exit(1);
 }
 
